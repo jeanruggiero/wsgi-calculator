@@ -1,3 +1,5 @@
+# !/usr/env/bin python
+
 """
 For your homework this week, you'll be creating a wsgi application of
 your own.
@@ -41,17 +43,39 @@ To submit your homework:
 
 """
 
+import functools
+import operator
+import traceback
+
 
 def add(*args):
     """ Returns a STRING with the sum of the arguments """
+    return str(sum(int(num) for num in args))
 
-    # TODO: Fill sum with the correct value, based on the
-    # args provided.
-    sum = "0"
 
-    return sum
+def subtract(*args):
+    """Returns a STRING with the difference of the arguments"""
+    return str(int(args[0]) - int(args[1]))
 
-# TODO: Add functions for handling more arithmetic operations.
+
+def multiply(*args):
+    """Returns a STRING with the product of the arguments"""
+    return str(functools.reduce(operator.mul, (int(num) for num in args)))
+
+
+def divide(*args):
+    """Returns a STRING with the quotient of the arguments"""
+    return str(int(args[0])//int(args[1]))
+
+
+def how_to(*args):
+    """Returns simple instructions for using the calculator"""
+    return """<h1>Web Calculator</h1>
+    <p>Type your calculation after the root address you see in 
+    your address bar in the form: '/operator/operand1/operand2'.<br>
+    For example: '/multiply/3/4' will return the product of 3 and 4, 12.<br><br>
+    The operator choices are: add, subtract, multiply, and divide.</p>"""
+
 
 def resolve_path(path):
     """
@@ -59,26 +83,47 @@ def resolve_path(path):
     arguments.
     """
 
-    # TODO: Provide correct values for func and args. The
-    # examples provide the correct *syntax*, but you should
-    # determine the actual values of func and args using the
-    # path.
-    func = add
-    args = ['25', '32']
+    funcs = {
+        '': how_to,
+        'add': add,
+        'subtract': subtract,
+        'multiply': multiply,
+        'divide': divide
+    }
 
+    path = path.strip('/').split('/')
+    func = funcs[path[0]]
+    args = path[1:]
     return func, args
 
+
 def application(environ, start_response):
-    # TODO: Your application code from the book database
-    # work here as well! Remember that your application must
-    # invoke start_response(status, headers) and also return
-    # the body of the response in BYTE encoding.
-    #
-    # TODO (bonus): Add error handling for a user attempting
-    # to divide by zero.
-    pass
+    headers = [('Content-type', 'text/html')]
+
+    try:
+        path = environ.get("PATH_INFO", None)
+        if path is None:
+            raise NameError
+        func, args = resolve_path(path)
+        body = func(*args)
+        status = "200 OK"
+    except NameError:
+        status = "404 Not Found"
+        body = "<h1>Not Found</h1>"
+    except ZeroDivisionError:
+        status = "400 Bad Request"
+        body = "<h1>You can't divide by zero! Try again!</h1>"
+    except Exception:
+        status = "500 Internal Server Error"
+        body = "<h1>Internal Server Error</h1>"
+        print(traceback.format_exc())
+    finally:
+        headers.append(("Content-length", str(len(body))))
+        start_response(status, headers)
+        return [body.encode()]
+
 
 if __name__ == '__main__':
-    # TODO: Insert the same boilerplate wsgiref simple
-    # server creation that you used in the book database.
-    pass
+    from wsgiref.simple_server import make_server
+    srv = make_server('localhost', 8080, application)
+    srv.serve_forever()
